@@ -194,8 +194,8 @@ io.on("connection", (socket) => {
     console.log(`Socket ${socket.id} joined room ${roomId}`);
     socket.emit("joined", roomId);
   });
-  socket.on("btnClicked", (roomId) => {
-    socket.to(roomId).emit("clicked", socket.id);
+  socket.on("btnClicked", (roomId, msg) => {
+    socket.to(roomId).emit("clicked", socket.id, msg);
   });
   socket.on("disconnect", () => {
     console.log("a user disconnected");

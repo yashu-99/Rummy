@@ -1,14 +1,17 @@
 const socket = io("http://localhost:3000/");
 const Joinbtn = document.getElementById("btn");
-const Clickbtn = document.getElementById("btn2");
+const Sendbtn = document.getElementById("btn2");
+const Input = document.getElementById("msg");
 let roomId;
 Joinbtn.addEventListener("click", () => {
   if (!roomId) socket.emit("joinButtonClicked");
   else console.log("you are already in a room");
 });
-Clickbtn.addEventListener("click", () => {
-  if (roomId) socket.emit("btnClicked", roomId);
+Sendbtn.addEventListener("click", () => {
+  const msg = Input.value;
+  if (roomId) socket.emit("btnClicked", roomId, msg);
   else console.log("Join a room first");
+  Input.value = "";
 });
 
 socket.on("joinRoom", (room_id) => {
@@ -20,6 +23,6 @@ socket.on("joinRoom", (room_id) => {
 socket.on("joined", (roomId) => {
   console.log("Successfully joined room:", roomId);
 });
-socket.on("clicked", (userId) => {
-  console.log(`User: ${userId} clicked the Btn!!!!`);
+socket.on("clicked", (userId, msg) => {
+  console.log(`User: ${userId} sent the msg: ${msg}`);
 });

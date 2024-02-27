@@ -84,19 +84,29 @@ app.post("/register", async (req, res) => {
           if (err) {
             throw err;
           }
-
-          const token = jwt.sign(
-            {
-              id: userId,
-              email,
-              name,
-            },
-            "secretstring",
-            {
-              expiresIn: "10000h",
+          const insertUserDashboard =
+            "INSERT INTO userdashboard (user_id, deposit_amount, current_balance, number_of_games_played, number_of_wins, number_of_lossess, winning_amount, total_amount_won, total_amount_lost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+          db.query(
+            insertUserDashboard,
+            [userId, 0, 1000, 0, 0, 0, 0, 0, 0],
+            (err, result) => {
+              if (err) {
+                throw err;
+              }
+              const token = jwt.sign(
+                {
+                  id: userId,
+                  email,
+                  name,
+                },
+                "secretstring",
+                {
+                  expiresIn: "10000h",
+                }
+              );
+              res.status(201).json({ token });
             }
           );
-          res.status(201).json({ token });
         }
       );
     });
@@ -163,12 +173,29 @@ app.post("/login", (req, res) => {
   }
 });
 
+const maxPlayers = 3;
+let userQueue = [];
+
 // Socket.io wala part
 io.on("connection", (socket) => {
-  console.log("user joined!!!");
-
-  socket.on("btnClicked", (data) => {
-    console.log("data emitted :", data);
+  console.log("user joined!!!", socket.id);
+  socket.on("joinButtonClicked", () => {
+    userQueue.push(socket.id);
+    if (userQueue.length === maxPlayers) {
+      const roomId = v4();
+      for (let i = 0; i < maxPlayers; i++) {
+        const socketId = userQueue.shift();
+        io.to(socketId).emit("joinRoom", roomId);
+      }
+    }
+  });
+  socket.on("join", (roomId) => {
+    socket.join(roomId);
+    console.log(`Socket ${socket.id} joined room ${roomId}`);
+    socket.emit("joined", roomId);
+  });
+  socket.on("btnClicked", (roomId) => {
+    socket.to(roomId).emit("clicked", socket.id);
   });
   socket.on("disconnect", () => {
     console.log("a user disconnected");

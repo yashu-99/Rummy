@@ -2,10 +2,21 @@ const socket = io("http://localhost:3000/");
 const Joinbtn = document.getElementById("btn");
 const Sendbtn = document.getElementById("btn2");
 const Input = document.getElementById("msg");
+const room_content = document.getElementById("room_content");
+const join_room = document.getElementById("join_room");
+const Exitbtn = document.getElementById("exit_btn");
 let roomId;
+let userToken = null;
 Joinbtn.addEventListener("click", () => {
   if (!roomId) socket.emit("joinButtonClicked");
   else console.log("you are already in a room");
+});
+Exitbtn.addEventListener("click", () => {
+  socket.emit("exitRoom", roomId);
+  console.log("Leaving room: ", roomId);
+  roomId = null;
+  room_content.style.display = "none";
+  join_room.style.display = "block";
 });
 Sendbtn.addEventListener("click", () => {
   const msg = Input.value;
@@ -22,7 +33,46 @@ socket.on("joinRoom", (room_id) => {
 });
 socket.on("joined", (roomId) => {
   console.log("Successfully joined room:", roomId);
+  room_content.style.display = "block";
+  join_room.style.display = "none";
 });
 socket.on("clicked", (userId, msg) => {
   console.log(`User: ${userId} sent the msg: ${msg}`);
+});
+socket.on("UserLeft", (id) => {
+  console.log(`User: ${id} left the game!!!`);
+});
+
+const loginForm = document.getElementById("loginForm");
+loginForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const formData = new FormData(loginForm);
+
+  const email = formData.get("email");
+  const password = formData.get("password");
+  fetch("http://localhost:3000/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email, password }),
+  })
+    .then((response) => response.json())
+    .then((data) => {
+      userToken = data.token;
+      console.log(userToken);
+      if (userToken) {
+        loginForm.style.display = "none";
+        socket.emit("changeStatus", true, userToken);
+      } else {
+        alert("Invalid Credentials");
+      }
+    })
+    .catch((error) => {
+      console.error("Error fetching token:", error);
+    });
+});
+
+window.addEventListener("beforeunload", () => {
+  if (userToken) socket.emit("disconnectEvent", userToken);
 });

@@ -145,10 +145,9 @@ app.post("/login", (req, res) => {
               if (err) {
                 throw err;
               }
-
               const token = jwt.sign(
                 {
-                  id: firstUser.id,
+                  id: firstUser.user_id,
                   email: firstUser.email,
                   name: firstUser.name,
                 },
@@ -173,11 +172,50 @@ app.post("/login", (req, res) => {
   }
 });
 
+async function changeActiveStatus(isActive, userToken) {
+  try {
+    jwt.verify(userToken, "secretstring", async function (err, user) {
+      if (err) {
+        if (err.name === "TokenExpiredError") {
+          return res.status(401).json({ msg: "Token expired" });
+        } else {
+          return res.status(403).json({ msg: "Invalid token" });
+        }
+      }
+      const userId = user.id;
+      const currentDate = new Date();
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth() + 1;
+      const day = currentDate.getDate() + 1;
+      const hours = currentDate.getHours();
+      const minutes = currentDate.getMinutes();
+      const seconds = currentDate.getSeconds();
+      const date = `${year}-${month}-${day}`;
+      const time = `${hours}:${minutes}:${seconds}`;
+      const updateQuery =
+        "UPDATE activeusers SET isActive = ?, last_active_date = ?, last_active_time = ? WHERE user_id = ?";
+      db.query(
+        updateQuery,
+        [isActive ? 1 : 0, date, time, userId],
+        (err, updateResult) => {
+          if (err) {
+            throw err;
+          }
+          console.log("Active status updated successfully");
+        }
+      );
+    });
+  } catch (err) {
+    console.error("Error updating active status:", err);
+    throw err;
+  }
+}
+
 const maxPlayers = 3;
 let userQueue = [];
 
 // Socket.io wala part
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
   console.log("user joined!!!", socket.id);
   socket.on("joinButtonClicked", () => {
     userQueue.push(socket.id);
@@ -197,7 +235,18 @@ io.on("connection", (socket) => {
   socket.on("btnClicked", (roomId, msg) => {
     socket.to(roomId).emit("clicked", socket.id, msg);
   });
-  socket.on("disconnect", () => {
+  socket.on("exitRoom", (roomId) => {
+    socket.leave(roomId);
+    socket.to(roomId).emit("UserLeft", socket.id);
+  });
+  socket.on("changeStatus", async (isActiveBool, user_token) => {
+    await changeActiveStatus(isActiveBool, user_token);
+  });
+  socket.on("disconnectEvent", async (token) => {
+    await changeActiveStatus(false, token);
+    socket.disconnect();
+  });
+  socket.on("disconnect", async () => {
     console.log("a user disconnected");
   });
 });

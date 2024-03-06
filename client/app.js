@@ -7,6 +7,7 @@ const join_room = document.getElementById("join_room");
 const Exitbtn = document.getElementById("exit_btn");
 let roomId;
 let userToken = null;
+let gameState = {};
 Joinbtn.addEventListener("click", () => {
   if (!roomId) socket.emit("joinButtonClicked");
   else console.log("you are already in a room");
@@ -25,10 +26,11 @@ Sendbtn.addEventListener("click", () => {
   Input.value = "";
 });
 
-socket.on("joinRoom", (room_id) => {
+socket.on("joinRoom", (room_id, gameStates) => {
   console.log("Received room ID:", room_id);
   roomId = room_id;
-  console.log("changed: ", roomId);
+  gameState = gameStates;
+  console.log(gameState);
   socket.emit("join", roomId);
 });
 socket.on("joined", (roomId) => {
@@ -74,5 +76,9 @@ loginForm.addEventListener("submit", (e) => {
 });
 
 window.addEventListener("beforeunload", () => {
-  if (userToken) socket.emit("disconnectEvent", userToken);
+  if (userToken) {
+    if (roomId) socket.emit("exitRoom", roomId);
+    roomId = null;
+    socket.emit("disconnectEvent", userToken);
+  }
 });

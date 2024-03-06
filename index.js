@@ -13,6 +13,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 // import { storeReturnTo } from "./middleware";
 import dotenv from "dotenv";
+import { createDeck, shuffle } from "./utils.js";
 dotenv.config();
 
 const app = express();
@@ -211,19 +212,40 @@ async function changeActiveStatus(isActive, userToken) {
   }
 }
 
-const maxPlayers = 3;
+const maxPlayers = 5;
+const cardsPerPlayer = 6;
 let userQueue = [];
+let gameStates = {};
 
 // Socket.io wala part
 io.on("connection", async (socket) => {
   console.log("user joined!!!", socket.id);
   socket.on("joinButtonClicked", () => {
-    userQueue.push(socket.id);
+    if (!userQueue.includes(socket.id)) userQueue.push(socket.id);
     if (userQueue.length === maxPlayers) {
       const roomId = v4();
+      const deck = createDeck();
+      const shuffledDeck = shuffle(deck);
+      const playerHandsMap = {};
+      const discardPile = [];
+      discardPile.push(shuffledDeck.splice(0, 1));
+      if (!gameStates[roomId]) {
+        gameStates[roomId] = {
+          players: [],
+          deck: [],
+          playerHands: {},
+          discardPile,
+        };
+      }
+      for (let i = 0; i < maxPlayers; i++) {
+        gameStates[roomId].players.push(userQueue[i]);
+        playerHandsMap[userQueue[i]] = shuffledDeck.splice(0, cardsPerPlayer);
+      }
+      gameStates[roomId].deck = shuffledDeck;
+      gameStates[roomId].playerHands = playerHandsMap;
       for (let i = 0; i < maxPlayers; i++) {
         const socketId = userQueue.shift();
-        io.to(socketId).emit("joinRoom", roomId);
+        io.to(socketId).emit("joinRoom", roomId, gameStates[roomId]);
       }
     }
   });

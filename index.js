@@ -212,7 +212,7 @@ async function changeActiveStatus(isActive, userToken) {
   }
 }
 
-const maxPlayers = 5;
+const maxPlayers = 3;
 const cardsPerPlayer = 6;
 let userQueue = [];
 let gameStates = {};
@@ -221,31 +221,43 @@ let gameStates = {};
 io.on("connection", async (socket) => {
   console.log("user joined!!!", socket.id);
   socket.on("joinButtonClicked", () => {
-    if (!userQueue.includes(socket.id)) userQueue.push(socket.id);
-    if (userQueue.length === maxPlayers) {
-      const roomId = v4();
-      const deck = createDeck();
-      const shuffledDeck = shuffle(deck);
-      const playerHandsMap = {};
-      const discardPile = [];
-      discardPile.push(shuffledDeck.splice(0, 1));
-      if (!gameStates[roomId]) {
-        gameStates[roomId] = {
-          players: [],
-          deck: [],
-          playerHands: {},
-          discardPile,
-        };
-      }
-      for (let i = 0; i < maxPlayers; i++) {
-        gameStates[roomId].players.push(userQueue[i]);
-        playerHandsMap[userQueue[i]] = shuffledDeck.splice(0, cardsPerPlayer);
-      }
-      gameStates[roomId].deck = shuffledDeck;
-      gameStates[roomId].playerHands = playerHandsMap;
-      for (let i = 0; i < maxPlayers; i++) {
-        const socketId = userQueue.shift();
-        io.to(socketId).emit("joinRoom", roomId, gameStates[roomId]);
+    if (!userQueue.includes(socket.id)) {
+      userQueue.push(socket.id);
+      if (userQueue.length === maxPlayers) {
+        const roomId = v4();
+        const deck = createDeck();
+        const shuffledDeck = shuffle(deck);
+        const playerHandsMap = {};
+        const discardPile = [];
+        discardPile.push(...shuffledDeck.splice(0, 3));
+
+        if (!gameStates[roomId]) {
+          gameStates[roomId] = {
+            players: [],
+            deck: shuffledDeck,
+            playerHands: {},
+            discardPile,
+          };
+        }
+
+        for (let i = 0; i < maxPlayers; i++) {
+          gameStates[roomId].players.push(userQueue[i]);
+          const socketId = userQueue[i];
+          playerHandsMap[socketId] = shuffledDeck.splice(0, cardsPerPlayer);
+        }
+
+        gameStates[roomId].playerHands = playerHandsMap;
+
+        for (let i = 0; i < maxPlayers; i++) {
+          const socketId = userQueue.shift();
+          const playerHand = playerHandsMap[socketId];
+          io.to(socketId).emit("joinRoom", roomId, {
+            players: gameStates[roomId].players,
+            deck: gameStates[roomId].deck,
+            discardPile: gameStates[roomId].discardPile,
+            playerHand,
+          });
+        }
       }
     }
   });
@@ -258,14 +270,20 @@ io.on("connection", async (socket) => {
     socket.to(roomId).emit("clicked", socket.id, msg);
   });
   socket.on("exitRoom", (roomId) => {
-    socket.leave(roomId);
-    socket.to(roomId).emit("UserLeft", socket.id);
+    const index = userQueue.indexOf(socket.id);
+    if (index > -1) {
+      userQueue.splice(index, 1);
+    }
+    if (roomId) {
+      socket.leave(roomId);
+      socket.to(roomId).emit("UserLeft", socket.id);
+    }
   });
   socket.on("changeStatus", async (isActiveBool, user_token) => {
     await changeActiveStatus(isActiveBool, user_token);
   });
   socket.on("disconnectEvent", async (token) => {
-    await changeActiveStatus(false, token);
+    if (token) await changeActiveStatus(false, token);
     socket.disconnect();
   });
   socket.on("disconnect", async () => {

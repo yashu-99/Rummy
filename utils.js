@@ -1,6 +1,9 @@
 // Helper function to create a card object
+let cardId = 1;
 function createCard(suit, rank) {
-  return { suit, rank };
+  const card = { id: cardId, suit, rank };
+  cardId++;
+  return card;
 }
 
 // Function to create a standard deck of cards
@@ -51,4 +54,5 @@ function shuffle(array) {
 
   return array;
 }
+
 export { createDeck, shuffle };

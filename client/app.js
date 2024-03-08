@@ -5,6 +5,7 @@ const Input = document.getElementById("msg");
 const room_content = document.getElementById("room_content");
 const join_room = document.getElementById("join_room");
 const Exitbtn = document.getElementById("exit_btn");
+import { renderGameState } from "./functions.js";
 let roomId;
 let userToken = null;
 let gameState = {};
@@ -27,16 +28,15 @@ Sendbtn.addEventListener("click", () => {
 });
 
 socket.on("joinRoom", (room_id, gameStates) => {
-  console.log("Received room ID:", room_id);
   roomId = room_id;
   gameState = gameStates;
   console.log(gameState);
   socket.emit("join", roomId);
 });
 socket.on("joined", (roomId) => {
-  console.log("Successfully joined room:", roomId);
   room_content.style.display = "block";
   join_room.style.display = "none";
+  renderGameState(gameState);
 });
 socket.on("clicked", (userId, msg) => {
   console.log(`User: ${userId} sent the msg: ${msg}`);
@@ -76,9 +76,7 @@ loginForm.addEventListener("submit", (e) => {
 });
 
 window.addEventListener("beforeunload", () => {
-  if (userToken) {
-    if (roomId) socket.emit("exitRoom", roomId);
-    roomId = null;
-    socket.emit("disconnectEvent", userToken);
-  }
+  socket.emit("exitRoom", roomId);
+  roomId = null;
+  socket.emit("disconnectEvent", userToken);
 });

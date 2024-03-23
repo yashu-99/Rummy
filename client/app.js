@@ -80,3 +80,34 @@ window.addEventListener("beforeunload", () => {
   roomId = null;
   socket.emit("disconnectEvent", userToken);
 });
+
+// Game Logic
+socket.on("gameStateUpdate", (currentGameState) => {
+  gameState = currentGameState;
+  renderGameState(gameState);
+});
+// Discard Pile Logic
+export function sendDiscardEvent(card) {
+  if (roomId && card) socket.emit("discardCard", card, roomId);
+  else if (!card) {
+    console.log("The deck is Empty!!");
+  } else {
+    console.log("connect to a room first!!");
+  }
+}
+export function sendDeckEvent(card) {
+  if (roomId && card) socket.emit("deckCard", card, roomId);
+  else if (!card) {
+    console.log("The deck is Empty!!");
+  } else {
+    console.log("connect to a room first!!");
+  }
+}
+export function sendPlayCardEvent(card) {
+  if (roomId && card) socket.emit("playCard", card, roomId);
+  else if (!card) {
+    console.log("The deck is Empty!!");
+  } else {
+    console.log("connect to a room first!!");
+  }
+}

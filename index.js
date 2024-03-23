@@ -13,7 +13,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 // import { storeReturnTo } from "./middleware";
 import dotenv from "dotenv";
-import { createDeck, shuffle } from "./utils.js";
+import { createDeck, shuffle, sendGameState } from "./utils.js";
 dotenv.config();
 
 const app = express();
@@ -229,7 +229,8 @@ io.on("connection", async (socket) => {
         const shuffledDeck = shuffle(deck);
         const playerHandsMap = {};
         const discardPile = [];
-        discardPile.push(...shuffledDeck.splice(0, 3));
+        const meld = [];
+        discardPile.push(...shuffledDeck.splice(0, 1));
 
         if (!gameStates[roomId]) {
           gameStates[roomId] = {
@@ -237,6 +238,7 @@ io.on("connection", async (socket) => {
             deck: shuffledDeck,
             playerHands: {},
             discardPile,
+            meld,
           };
         }
 
@@ -256,6 +258,7 @@ io.on("connection", async (socket) => {
             deck: gameStates[roomId].deck,
             discardPile: gameStates[roomId].discardPile,
             playerHand,
+            meld,
           });
         }
       }
@@ -288,6 +291,53 @@ io.on("connection", async (socket) => {
   });
   socket.on("disconnect", async () => {
     console.log("a user disconnected");
+  });
+
+  // Game Logic Events
+  // Discard Card Picked
+  socket.on("discardCard", (card, roomId) => {
+    if (roomId && gameStates[roomId]) {
+      const gameState = gameStates[roomId];
+      const playerHand = gameState.playerHands[socket.id];
+      playerHand.push(card);
+      gameState.discardPile.pop();
+      gameState.playerHands[socket.id] = playerHand;
+      gameStates[roomId] = gameState;
+      const players = gameState.players;
+      sendGameState(players, io, gameState);
+    }
+  });
+  // Deck Card Picked
+  socket.on("deckCard", (card, roomId) => {
+    if (roomId && gameStates[roomId]) {
+      const gameState = gameStates[roomId];
+      const playerHand = gameState.playerHands[socket.id];
+      playerHand.push(card);
+      gameState.deck.shift();
+      gameState.playerHands[socket.id] = playerHand;
+      gameStates[roomId] = gameState;
+      const players = gameState.players;
+      sendGameState(players, io, gameState);
+    }
+  });
+  // To Play a card to discard Pile
+  socket.on("playCard", (card, roomId) => {
+    const cardId = card.id;
+    if (roomId && gameStates[roomId]) {
+      const gameState = gameStates[roomId];
+      const playerHand = gameState.playerHands[socket.id];
+      const discardedCardIndex = playerHand.findIndex(
+        (card) => card.id === cardId
+      );
+      if (discardedCardIndex !== -1) {
+        const discardedCard = playerHand.splice(discardedCardIndex, 1)[0];
+        gameState.discardPile.push(discardedCard);
+        gameState.playerHands[socket.id] = playerHand;
+        gameStates[roomId] = gameState;
+        const players = gameState.players;
+        sendGameState(players, io, gameState);
+      }
+    }
   });
 });
 

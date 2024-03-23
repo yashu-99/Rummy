@@ -55,4 +55,17 @@ function shuffle(array) {
   return array;
 }
 
-export { createDeck, shuffle };
+function sendGameState(players, io, gameState) {
+  players.forEach((player) => {
+    const currentGameState = {
+      players: gameState.players,
+      deck: gameState.deck,
+      discardPile: gameState.discardPile,
+      playerHand: gameState.playerHands[player],
+      meld: gameState.meld,
+    };
+    io.to(player).emit("gameStateUpdate", currentGameState);
+  });
+}
+
+export { createDeck, shuffle, sendGameState };

@@ -13,7 +13,7 @@ import helmet from "helmet";
 import morgan from "morgan";
 // import { storeReturnTo } from "./middleware";
 import dotenv from "dotenv";
-import { createDeck, shuffle, sendGameState } from "./utils.js";
+import { createDeck, shuffle, sendGameState, checkMeld } from "./utils.js";
 dotenv.config();
 
 const app = express();
@@ -332,6 +332,31 @@ io.on("connection", async (socket) => {
       if (discardedCardIndex !== -1) {
         const discardedCard = playerHand.splice(discardedCardIndex, 1)[0];
         gameState.discardPile.push(discardedCard);
+        gameState.playerHands[socket.id] = playerHand;
+        gameStates[roomId] = gameState;
+        const players = gameState.players;
+        sendGameState(players, io, gameState);
+      }
+    }
+  });
+  socket.on("addMeld", (selectedCards, roomId) => {
+    if (roomId && gameStates[roomId] && selectedCards.length > 2) {
+      if (checkMeld(selectedCards)) {
+        const gameState = gameStates[roomId];
+        let playerHand = gameState.playerHands[socket.id];
+        const meld = gameState.meld;
+        const sortedCards = selectedCards.slice().sort((a, b) => a.id - b.id);
+        meld.push(sortedCards);
+        playerHand = playerHand.filter((card) => {
+          return !selectedCards.some((selectedCard) => {
+            return (
+              selectedCard.id === card.id &&
+              selectedCard.suit === card.suit &&
+              selectedCard.rank === card.rank
+            );
+          });
+        });
+        gameState.meld = meld;
         gameState.playerHands[socket.id] = playerHand;
         gameStates[roomId] = gameState;
         const players = gameState.players;

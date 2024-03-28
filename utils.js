@@ -68,4 +68,52 @@ function sendGameState(players, io, gameState) {
   });
 }
 
-export { createDeck, shuffle, sendGameState };
+function checkMeld(selectedCards) {
+  let sameRank = false;
+  let consecutive = false;
+  let hasSameSuit = false;
+
+  // Check if all cards have the same rank
+  const firstCardRank = selectedCards[0].rank;
+  sameRank = selectedCards.every((card) => card.rank === firstCardRank);
+
+  // Check if all cards have the same suit and are consecutive
+  const suits = new Set(selectedCards.map((card) => card.suit));
+  if (suits.size === 1) {
+    hasSameSuit = true;
+    const rankValues = {
+      2: 2,
+      3: 3,
+      4: 4,
+      5: 5,
+      6: 6,
+      7: 7,
+      8: 8,
+      9: 9,
+      10: 10,
+      J: 11,
+      Q: 12,
+      K: 13,
+      A: 1,
+    };
+
+    const sortedCards = selectedCards.slice().sort((a, b) => {
+      return rankValues[a.rank] - rankValues[b.rank];
+    });
+
+    for (let i = 0; i < sortedCards.length - 1; i++) {
+      const currentRankValue = rankValues[sortedCards[i].rank];
+      const nextRankValue = rankValues[sortedCards[i + 1].rank];
+      if (nextRankValue - currentRankValue !== 1) {
+        consecutive = false;
+        break;
+      } else {
+        consecutive = true;
+      }
+    }
+  }
+
+  const res = sameRank || (hasSameSuit && consecutive);
+  return res;
+}
+export { createDeck, shuffle, sendGameState, checkMeld };

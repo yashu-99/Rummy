@@ -111,3 +111,14 @@ export function sendPlayCardEvent(card) {
     console.log("connect to a room first!!");
   }
 }
+
+// Meld Deck Logic
+export function addMeldEvent(selectedCards) {
+  if (selectedCards.length > 2 && roomId) {
+    socket.emit("addMeld", selectedCards, roomId);
+  } else if (!roomId) {
+    console.log("Join a room first!!");
+  } else {
+    console.log("Meld must contain atleast 3 cards!!!");
+  }
+}

@@ -3,7 +3,8 @@ import {
   sendDiscardEvent,
   sendDeckEvent,
   sendPlayCardEvent,
-  addMeldEvent,
+  addNewMeldEvent,
+  addToMeld,
 } from "./app.js";
 
 function emptyDivWithRemoveChild(divElement) {
@@ -93,7 +94,7 @@ export function renderGameState(gameState) {
   // Rendering the meld piles
   const meld = gameState.meld;
   const meldButton = document.createElement("button");
-  meldButton.textContent = "meld";
+  meldButton.textContent = "Meld / Layoff";
   meldButton.id = "meldBtn";
   // Meld btn logic
   meldButton.addEventListener("click", () => {
@@ -109,7 +110,7 @@ export function renderGameState(gameState) {
     if (isMeldOn) {
       if (selectedCards.length > 2) {
         if (checkMeld(selectedCards)) {
-          addMeldEvent(selectedCards);
+          addNewMeldEvent(selectedCards);
           selectedCards = [];
           isMeldOn = false;
         } else {
@@ -134,8 +135,28 @@ export function renderGameState(gameState) {
       cardButton.disabled = true;
       meldDiv.appendChild(cardButton);
     });
+    const layoffButton = document.createElement("button");
+    layoffButton.textContent = "Add +";
+    meldDiv.appendChild(layoffButton);
     meldDeckContainer.appendChild(meldDiv);
     const lineBreak = document.createElement("br");
     meldDeckContainer.appendChild(lineBreak);
+    // LayOff Button Logic
+    layoffButton.addEventListener("click", () => {
+      if (isMeldOn) {
+        if (selectedCards.length > 0) {
+          const newMeld = [...m, ...selectedCards];
+          if (checkMeld(newMeld)) {
+            addToMeld(m, newMeld, selectedCards);
+          } else {
+            console.log("Cannot Add to the selected meld!!");
+          }
+        } else {
+          console.log("Select Some cards first!");
+        }
+      } else {
+        console.log("Melding is turned off!");
+      }
+    });
   });
 }

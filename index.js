@@ -13,7 +13,14 @@ import helmet from "helmet";
 import morgan from "morgan";
 // import { storeReturnTo } from "./middleware";
 import dotenv from "dotenv";
-import { createDeck, shuffle, sendGameState, checkMeld } from "./utils.js";
+import {
+  createDeck,
+  shuffle,
+  sendGameState,
+  checkMeld,
+  isSubset,
+  arraysEqual,
+} from "./utils.js";
 dotenv.config();
 
 const app = express();
@@ -226,7 +233,7 @@ io.on("connection", async (socket) => {
       if (userQueue.length === maxPlayers) {
         const roomId = v4();
         const deck = createDeck();
-        const shuffledDeck = shuffle(deck);
+        const shuffledDeck = deck; //shuffle(deck);
         const playerHandsMap = {};
         const discardPile = [];
         const meld = [];
@@ -335,11 +342,21 @@ io.on("connection", async (socket) => {
         gameState.playerHands[socket.id] = playerHand;
         gameStates[roomId] = gameState;
         const players = gameState.players;
+        // Maintaining Deck Size
+        let deck = gameState.deck;
+        let discardPile = gameState.discardPile;
+        if (deck.length == 0) {
+          const cardsToMoveToDesk = discardPile.slice(0, -1);
+          deck = shuffle([...cardsToMoveToDesk]);
+          discardPile = discardPile.slice(-1);
+          gameStates[roomId].deck = deck;
+          gameStates[roomId].discardPile = discardPile;
+        }
         sendGameState(players, io, gameState);
       }
     }
   });
-  socket.on("addMeld", (selectedCards, roomId) => {
+  socket.on("addNewMeld", (selectedCards, roomId) => {
     if (roomId && gameStates[roomId] && selectedCards.length > 2) {
       if (checkMeld(selectedCards)) {
         const gameState = gameStates[roomId];
@@ -357,6 +374,36 @@ io.on("connection", async (socket) => {
           });
         });
         gameState.meld = meld;
+        gameState.playerHands[socket.id] = playerHand;
+        gameStates[roomId] = gameState;
+        const players = gameState.players;
+        sendGameState(players, io, gameState);
+      }
+    }
+  });
+  socket.on("addToMeld", (oldMeld, newMeld, selectedCards, roomId) => {
+    if (roomId && gameStates[roomId] && selectedCards.length > 0) {
+      if (checkMeld(newMeld) && isSubset(oldMeld, newMeld)) {
+        const gameState = gameStates[roomId];
+        let playerHand = gameState.playerHands[socket.id];
+        const meld = gameState.meld;
+        const sortedCards = newMeld.slice().sort((a, b) => a.id - b.id);
+        const newMeldDeck = meld.map((m) => {
+          if (arraysEqual(m, oldMeld)) {
+            return sortedCards;
+          }
+          return m;
+        });
+        playerHand = playerHand.filter((card) => {
+          return !selectedCards.some((selectedCard) => {
+            return (
+              selectedCard.id === card.id &&
+              selectedCard.suit === card.suit &&
+              selectedCard.rank === card.rank
+            );
+          });
+        });
+        gameState.meld = newMeldDeck;
         gameState.playerHands[socket.id] = playerHand;
         gameStates[roomId] = gameState;
         const players = gameState.players;

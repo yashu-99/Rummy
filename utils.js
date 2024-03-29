@@ -116,4 +116,35 @@ function checkMeld(selectedCards) {
   const res = sameRank || (hasSameSuit && consecutive);
   return res;
 }
-export { createDeck, shuffle, sendGameState, checkMeld };
+
+function isSubset(subset, superset) {
+  return subset.every((subsetItem) => {
+    return superset.some((supersetItem) => isEqual(subsetItem, supersetItem));
+  });
+}
+
+function isEqual(obj1, obj2) {
+  const keys1 = Object.keys(obj1);
+  const keys2 = Object.keys(obj2);
+
+  if (keys1.length !== keys2.length) {
+    return false;
+  }
+
+  for (let key of keys1) {
+    if (obj1[key] !== obj2[key]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+const arraysEqual = (a1, a2) =>
+  a1.length === a2.length && a1.every((o, idx) => objectsEqual(o, a2[idx]));
+
+const objectsEqual = (o1, o2) =>
+  Object.keys(o1).length === Object.keys(o2).length &&
+  Object.keys(o1).every((p) => o1[p] === o2[p]);
+
+export { createDeck, shuffle, sendGameState, checkMeld, isSubset, arraysEqual };

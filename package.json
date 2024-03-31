@@ -18,7 +18,7 @@
   "version": "1.0.0",
   "main": "middleware.js",
   "scripts": {
-    "start": "node script.js",
+    "start": "node index.js",
     "peerstart": "peerjs --port 3001"
   },
   "type": "module",

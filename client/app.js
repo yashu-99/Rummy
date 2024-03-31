@@ -15,6 +15,7 @@ Joinbtn.addEventListener("click", () => {
 });
 Exitbtn.addEventListener("click", () => {
   socket.emit("exitRoom", roomId);
+  socket.emit("addRemainingCards", roomId);
   console.log("Leaving room: ", roomId);
   roomId = null;
   room_content.style.display = "none";
@@ -76,7 +77,10 @@ loginForm.addEventListener("submit", (e) => {
 });
 
 window.addEventListener("beforeunload", () => {
-  socket.emit("exitRoom", roomId);
+  if (roomId) {
+    socket.emit("exitRoom", roomId);
+    socket.emit("addRemainingCards", roomId);
+  }
   roomId = null;
   socket.emit("disconnectEvent", userToken);
 });

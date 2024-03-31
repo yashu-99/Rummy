@@ -279,6 +279,21 @@ io.on("connection", async (socket) => {
   socket.on("btnClicked", (roomId, msg) => {
     socket.to(roomId).emit("clicked", socket.id, msg);
   });
+  socket.on("addRemainingCards", (roomId) => {
+    const gameState = gameStates[roomId];
+    if (gameState) {
+      const playerHand = gameState.playerHands[socket.id];
+      if (playerHand) {
+        gameState.deck.push(...playerHand); // Add remaining cards back to the deck
+        delete gameState.playerHands[socket.id]; // Remove player from playerHands
+        const players = gameState.players;
+        gameState.deck = shuffle(gameState.deck);
+        // Send updated game state to all players in the room
+        sendGameState(players, io, gameState);
+      }
+    }
+  });
+
   socket.on("exitRoom", (roomId) => {
     const index = userQueue.indexOf(socket.id);
     if (index > -1) {

@@ -14,8 +14,10 @@ Joinbtn.addEventListener("click", () => {
   else console.log("you are already in a room");
 });
 Exitbtn.addEventListener("click", () => {
-  socket.emit("exitRoom", roomId);
-  socket.emit("addRemainingCards", roomId);
+  if (roomId) {
+    socket.emit("exitRoom", roomId);
+    socket.emit("addRemainingCards", roomId);
+  }
   console.log("Leaving room: ", roomId);
   roomId = null;
   room_content.style.display = "none";
@@ -91,7 +93,7 @@ socket.on("gameStateUpdate", (currentGameState) => {
   renderGameState(gameState);
 });
 // Discard Pile Logic
-export function sendDiscardEvent(card) {
+function sendDiscardEvent(card) {
   if (roomId && card) socket.emit("discardCard", card, roomId);
   else if (!card) {
     console.log("The deck is Empty!!");
@@ -99,7 +101,7 @@ export function sendDiscardEvent(card) {
     console.log("connect to a room first!!");
   }
 }
-export function sendDeckEvent(card) {
+function sendDeckEvent(card) {
   if (roomId && card) socket.emit("deckCard", card, roomId);
   else if (!card) {
     console.log("The deck is Empty!!");
@@ -107,9 +109,10 @@ export function sendDeckEvent(card) {
     console.log("connect to a room first!!");
   }
 }
-export function sendPlayCardEvent(card) {
-  if (roomId && card) socket.emit("playCard", card, roomId);
-  else if (!card) {
+function sendPlayCardEvent(card) {
+  if (roomId && card) {
+    socket.emit("playCard", card, roomId);
+  } else if (!card) {
     console.log("The deck is Empty!!");
   } else {
     console.log("connect to a room first!!");
@@ -117,7 +120,7 @@ export function sendPlayCardEvent(card) {
 }
 
 // Meld Deck Logic
-export function addNewMeldEvent(selectedCards) {
+function addNewMeldEvent(selectedCards) {
   if (selectedCards.length > 2 && roomId) {
     socket.emit("addNewMeld", selectedCards, roomId);
   } else if (!roomId) {
@@ -127,7 +130,7 @@ export function addNewMeldEvent(selectedCards) {
   }
 }
 
-export function addToMeld(oldMeld, newMeld, selectedCards) {
+function addToMeld(oldMeld, newMeld, selectedCards) {
   if (roomId && selectedCards.length > 0) {
     socket.emit("addToMeld", oldMeld, newMeld, selectedCards, roomId);
   } else if (!roomId) {
@@ -136,3 +139,31 @@ export function addToMeld(oldMeld, newMeld, selectedCards) {
     console.log("Select some cards first!!");
   }
 }
+
+//Check Turn Function
+const functionMap = {
+  sendDiscardEvent: sendDiscardEvent,
+  sendDeckEvent: sendDeckEvent,
+  sendPlayCardEvent: sendPlayCardEvent,
+  addNewMeldEvent: addNewMeldEvent,
+  addToMeld: addToMeld,
+};
+export function checkTurn(callbackFuncIdentifier, args) {
+  if (roomId) {
+    socket.emit("checkTurn", roomId, callbackFuncIdentifier, args);
+  } else {
+    console.log("Join a Room First!!");
+  }
+}
+
+socket.on("isTurn", (callbackFuncIdentifier, args) => {
+  const callbackFunc = functionMap[callbackFuncIdentifier];
+  if (callbackFunc) {
+    callbackFunc(...args);
+  } else {
+    console.log("Invalid function identifier");
+  }
+});
+socket.on("incorrectTurn", () => {
+  console.log("Please Wait for your Turn!!");
+});

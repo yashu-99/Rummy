@@ -246,6 +246,7 @@ io.on("connection", async (socket) => {
             playerHands: {},
             discardPile,
             meld,
+            currentTurn: 0,
           };
         }
 
@@ -266,6 +267,7 @@ io.on("connection", async (socket) => {
             discardPile: gameStates[roomId].discardPile,
             playerHand,
             meld,
+            currentTurn: gameStates[roomId].currentTurn,
           });
         }
       }
@@ -293,7 +295,6 @@ io.on("connection", async (socket) => {
       }
     }
   });
-
   socket.on("exitRoom", (roomId) => {
     const index = userQueue.indexOf(socket.id);
     if (index > -1) {
@@ -314,7 +315,14 @@ io.on("connection", async (socket) => {
   socket.on("disconnect", async () => {
     console.log("a user disconnected");
   });
-
+  socket.on("checkTurn", (roomId, callbackFuncIdentifier, args) => {
+    const index = gameStates[roomId].players.indexOf(socket.id);
+    if (index === gameStates[roomId].currentTurn) {
+      io.to(socket.id).emit("isTurn", callbackFuncIdentifier, args);
+    } else {
+      io.to(socket.id).emit("incorrectTurn");
+    }
+  });
   // Game Logic Events
   // Discard Card Picked
   socket.on("discardCard", (card, roomId) => {
@@ -357,6 +365,8 @@ io.on("connection", async (socket) => {
         gameState.playerHands[socket.id] = playerHand;
         gameStates[roomId] = gameState;
         const players = gameState.players;
+        gameStates[roomId].currentTurn =
+          (gameStates[roomId].currentTurn + 1) % maxPlayers;
         // Maintaining Deck Size
         let deck = gameState.deck;
         let discardPile = gameState.discardPile;
@@ -371,6 +381,7 @@ io.on("connection", async (socket) => {
       }
     }
   });
+  // Add new Meld
   socket.on("addNewMeld", (selectedCards, roomId) => {
     if (roomId && gameStates[roomId] && selectedCards.length > 2) {
       if (checkMeld(selectedCards)) {
@@ -396,6 +407,7 @@ io.on("connection", async (socket) => {
       }
     }
   });
+  // Add cards to Meld
   socket.on("addToMeld", (oldMeld, newMeld, selectedCards, roomId) => {
     if (roomId && gameStates[roomId] && selectedCards.length > 0) {
       if (checkMeld(newMeld) && isSubset(oldMeld, newMeld)) {

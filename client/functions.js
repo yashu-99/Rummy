@@ -1,12 +1,7 @@
 import { checkMeld } from "../utils.js";
-import {
-  sendDiscardEvent,
-  sendDeckEvent,
-  sendPlayCardEvent,
-  addNewMeldEvent,
-  addToMeld,
-} from "./app.js";
-
+import { checkTurn } from "./app.js";
+let selectedCards = [];
+let isMeldOn = false;
 function emptyDivWithRemoveChild(divElement) {
   while (divElement.firstChild) {
     divElement.removeChild(divElement.firstChild);
@@ -15,8 +10,6 @@ function emptyDivWithRemoveChild(divElement) {
 function emptyDivWithReplaceChildren(divElement) {
   divElement.replaceChildren();
 }
-let selectedCards = [];
-let isMeldOn = false;
 export function renderGameState(gameState) {
   const mainGameContainer = document.getElementById("mainGameContainer");
   const meldDeckContainer = document.getElementById("meldDeckContainer");
@@ -35,7 +28,7 @@ export function renderGameState(gameState) {
     discardCardButton.textContent = `Empty Pile`;
     mainGameContainer.appendChild(discardCardButton);
     discardCardButton.addEventListener("click", () => {
-      sendDiscardEvent(null);
+      checkTurn("sendDiscardEvent", [null]);
     });
   } else {
     const discardPile = gameState.discardPile[gameState.discardPile.length - 1]; //Discard pile ka last patta
@@ -45,7 +38,7 @@ export function renderGameState(gameState) {
     discardCardButton.textContent = `${discardPile.rank} of ${discardPile.suit}`;
     mainGameContainer.appendChild(discardCardButton);
     discardCardButton.addEventListener("click", () => {
-      sendDiscardEvent(discardPile);
+      checkTurn("sendDiscardEvent", [discardPile]);
     });
   }
   // Making the remaining deck
@@ -56,7 +49,7 @@ export function renderGameState(gameState) {
     deckCardButton.textContent = `Empty Pile`;
     mainGameContainer.appendChild(deckCardButton);
     deckCardButton.addEventListener("click", () => {
-      sendDeckEvent(null);
+      checkTurn("sendDeckEvent", [null]);
     });
   } else {
     const deckPile = gameState.deck[0]; // Deck ka pehle patta
@@ -66,7 +59,7 @@ export function renderGameState(gameState) {
     deckCardButton.textContent = `Deck`;
     mainGameContainer.appendChild(deckCardButton);
     deckCardButton.addEventListener("click", () => {
-      sendDeckEvent(deckPile);
+      checkTurn("sendDeckEvent", [deckPile]);
     });
   }
   const lineBreak = document.createElement("br");
@@ -79,7 +72,7 @@ export function renderGameState(gameState) {
     cardButton.textContent = `${card.rank} of ${card.suit}`;
     mainGameContainer.appendChild(cardButton);
     cardButton.addEventListener("click", () => {
-      if (!isMeldOn) sendPlayCardEvent(card);
+      if (!isMeldOn) checkTurn("sendPlayCardEvent", [card]);
       else {
         if (!selectedCards.includes(card)) {
           selectedCards.push(card);
@@ -110,7 +103,7 @@ export function renderGameState(gameState) {
     if (isMeldOn) {
       if (selectedCards.length > 2) {
         if (checkMeld(selectedCards)) {
-          addNewMeldEvent(selectedCards);
+          checkTurn("addNewMeldEvent", [selectedCards]);
           selectedCards = [];
           isMeldOn = false;
         } else {
@@ -147,7 +140,8 @@ export function renderGameState(gameState) {
         if (selectedCards.length > 0) {
           const newMeld = [...m, ...selectedCards];
           if (checkMeld(newMeld)) {
-            addToMeld(m, newMeld, selectedCards);
+            checkTurn("addToMeld", [m, newMeld, selectedCards]);
+            isMeldOn = false;
           } else {
             console.log("Cannot Add to the selected meld!!");
           }

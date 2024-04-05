@@ -273,7 +273,7 @@ io.on("connection", async (socket) => {
             if (userQueue.length === maxPlayers) {
               const roomId = v4();
               const deck = createDeck();
-              const shuffledDeck = deck; //shuffle(deck);
+              const shuffledDeck = shuffle(deck);
               const playerHandsMap = {};
               const discardPile = [];
               const meld = [];

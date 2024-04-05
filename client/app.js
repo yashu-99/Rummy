@@ -10,8 +10,15 @@ let roomId;
 let userToken = null;
 let gameState = {};
 Joinbtn.addEventListener("click", () => {
-  if (!roomId) socket.emit("joinButtonClicked");
-  else console.log("you are already in a room");
+  if (userToken) {
+    if (!roomId) socket.emit("joinButtonClicked", userToken);
+    else console.log("you are already in a room");
+  } else {
+    console.log("Log in First to Play!!");
+  }
+});
+socket.on("invalidToken", () => {
+  console.log("Invalid Token Please Login Again");
 });
 Exitbtn.addEventListener("click", () => {
   if (roomId) {
@@ -90,6 +97,7 @@ window.addEventListener("beforeunload", () => {
 // Game Logic
 socket.on("gameStateUpdate", (currentGameState) => {
   gameState = currentGameState;
+  console.log(gameState);
   renderGameState(gameState);
 });
 // Discard Pile Logic
@@ -166,4 +174,26 @@ socket.on("isTurn", (callbackFuncIdentifier, args) => {
 });
 socket.on("incorrectTurn", () => {
   console.log("Please Wait for your Turn!!");
+});
+
+// Winning Condition
+socket.on("youWin", () => {
+  console.log("You Win!!");
+  if (roomId && userToken) socket.emit("userWin", roomId, userToken);
+  roomId = null;
+  room_content.style.display = "none";
+  join_room.style.display = "block";
+});
+socket.on("youLost", () => {
+  socket.emit("userLost", userToken);
+  roomId = null;
+  room_content.style.display = "none";
+  join_room.style.display = "block";
+});
+socket.on("userWin", (socketId) => {
+  console.log(socketId, " won the Game!!!");
+  socket.emit("userLost", userToken);
+  roomId = null;
+  room_content.style.display = "none";
+  join_room.style.display = "block";
 });

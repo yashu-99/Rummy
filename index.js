@@ -21,8 +21,8 @@ import {
   isSubset,
   arraysEqual,
 } from "./utils.js";
+import { checkUserToken, getUserId } from "./middleware.js";
 dotenv.config();
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -123,7 +123,7 @@ app.post("/register", async (req, res) => {
   }
 });
 
-app.post("/login", (req, res) => {
+app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const query = "SELECT * FROM users WHERE email = ?";
@@ -180,6 +180,44 @@ app.post("/login", (req, res) => {
   }
 });
 
+app.get("/deposit", async (req, res) => {
+  const token = req.headers["authorization"];
+  const amount = req.body.amount;
+  const userId = await getUserId(token);
+  if (userId) {
+    // Fetching userDashBoard data
+    try {
+      const query = "Select * from userdashboard where user_id = ?";
+      db.query(query, [userId], (err, userData) => {
+        if (err) {
+          throw err;
+        } else {
+          const data = userData[0];
+          // Updating the data
+          const updateQuery =
+            "UPDATE userdashboard SET deposit_amount = ?, current_balance = ? WHERE user_id = ?";
+          db.query(
+            updateQuery,
+            [
+              data.deposit_amount + amount,
+              data.current_balance + amount,
+              userId,
+            ],
+            (err, updatedData) => {
+              if (err) {
+                throw err;
+              }
+              res.status(200).json({ ...updatedData });
+            }
+          );
+        }
+      });
+    } catch (err) {
+      console.error("Error fetching data: ", err);
+    }
+  }
+});
+
 async function changeActiveStatus(isActive, userToken) {
   try {
     jwt.verify(userToken, "secretstring", async function (err, user) {
@@ -209,7 +247,6 @@ async function changeActiveStatus(isActive, userToken) {
           if (err) {
             throw err;
           }
-          console.log("Active status updated successfully");
         }
       );
     });
@@ -221,61 +258,73 @@ async function changeActiveStatus(isActive, userToken) {
 
 const maxPlayers = 3;
 const cardsPerPlayer = 6;
+const priceOfGame = 100;
 let userQueue = [];
 let gameStates = {};
 
 // Socket.io wala part
 io.on("connection", async (socket) => {
-  console.log("user joined!!!", socket.id);
-  socket.on("joinButtonClicked", () => {
-    if (!userQueue.includes(socket.id)) {
-      userQueue.push(socket.id);
-      if (userQueue.length === maxPlayers) {
-        const roomId = v4();
-        const deck = createDeck();
-        const shuffledDeck = deck; //shuffle(deck);
-        const playerHandsMap = {};
-        const discardPile = [];
-        const meld = [];
-        discardPile.push(...shuffledDeck.splice(0, 1));
+  socket.on("joinButtonClicked", (user_token) => {
+    checkUserToken(user_token)
+      .then((isValid) => {
+        if (isValid) {
+          if (!userQueue.includes(socket.id)) {
+            userQueue.push(socket.id);
+            if (userQueue.length === maxPlayers) {
+              const roomId = v4();
+              const deck = createDeck();
+              const shuffledDeck = deck; //shuffle(deck);
+              const playerHandsMap = {};
+              const discardPile = [];
+              const meld = [];
+              discardPile.push(...shuffledDeck.splice(0, 1));
 
-        if (!gameStates[roomId]) {
-          gameStates[roomId] = {
-            players: [],
-            deck: shuffledDeck,
-            playerHands: {},
-            discardPile,
-            meld,
-            currentTurn: 0,
-          };
+              if (!gameStates[roomId]) {
+                gameStates[roomId] = {
+                  players: [],
+                  deck: shuffledDeck,
+                  playerHands: {},
+                  discardPile,
+                  meld,
+                  currentTurn: 0,
+                };
+              }
+
+              for (let i = 0; i < maxPlayers; i++) {
+                gameStates[roomId].players.push(userQueue[i]);
+                const socketId = userQueue[i];
+                playerHandsMap[socketId] = shuffledDeck.splice(
+                  0,
+                  cardsPerPlayer
+                );
+              }
+
+              gameStates[roomId].playerHands = playerHandsMap;
+
+              for (let i = 0; i < maxPlayers; i++) {
+                const socketId = userQueue.shift();
+                const playerHand = playerHandsMap[socketId];
+                io.to(socketId).emit("joinRoom", roomId, {
+                  players: gameStates[roomId].players,
+                  deck: gameStates[roomId].deck,
+                  discardPile: gameStates[roomId].discardPile,
+                  playerHand,
+                  meld,
+                  currentTurn: gameStates[roomId].currentTurn,
+                });
+              }
+            }
+          }
+        } else {
+          socket.emit("invalidToken");
         }
-
-        for (let i = 0; i < maxPlayers; i++) {
-          gameStates[roomId].players.push(userQueue[i]);
-          const socketId = userQueue[i];
-          playerHandsMap[socketId] = shuffledDeck.splice(0, cardsPerPlayer);
-        }
-
-        gameStates[roomId].playerHands = playerHandsMap;
-
-        for (let i = 0; i < maxPlayers; i++) {
-          const socketId = userQueue.shift();
-          const playerHand = playerHandsMap[socketId];
-          io.to(socketId).emit("joinRoom", roomId, {
-            players: gameStates[roomId].players,
-            deck: gameStates[roomId].deck,
-            discardPile: gameStates[roomId].discardPile,
-            playerHand,
-            meld,
-            currentTurn: gameStates[roomId].currentTurn,
-          });
-        }
-      }
-    }
+      })
+      .catch((err) => {
+        console.error(err);
+      });
   });
   socket.on("join", (roomId) => {
     socket.join(roomId);
-    console.log(`Socket ${socket.id} joined room ${roomId}`);
     socket.emit("joined", roomId);
   });
   socket.on("btnClicked", (roomId, msg) => {
@@ -288,8 +337,19 @@ io.on("connection", async (socket) => {
       if (playerHand) {
         gameState.deck.push(...playerHand); // Add remaining cards back to the deck
         delete gameState.playerHands[socket.id]; // Remove player from playerHands
+        const currentTurnIndex = gameState.players.indexOf(socket.id);
+        if (currentTurnIndex < gameState.currentTurn)
+          gameState.currentTurn -= 1;
+        gameState.players = gameState.players.filter(
+          (playerId) => playerId !== socket.id
+        );
         const players = gameState.players;
+        if (players.length === 1) {
+          io.to(players[0]).emit("youWin");
+        }
+        io.to(socket.id).emit("youLost");
         gameState.deck = shuffle(gameState.deck);
+        gameStates[roomId] = gameState;
         // Send updated game state to all players in the room
         sendGameState(players, io, gameState);
       }
@@ -311,9 +371,6 @@ io.on("connection", async (socket) => {
   socket.on("disconnectEvent", async (token) => {
     if (token) await changeActiveStatus(false, token);
     socket.disconnect();
-  });
-  socket.on("disconnect", async () => {
-    console.log("a user disconnected");
   });
   socket.on("checkTurn", (roomId, callbackFuncIdentifier, args) => {
     const index = gameStates[roomId].players.indexOf(socket.id);
@@ -363,10 +420,14 @@ io.on("connection", async (socket) => {
         const discardedCard = playerHand.splice(discardedCardIndex, 1)[0];
         gameState.discardPile.push(discardedCard);
         gameState.playerHands[socket.id] = playerHand;
+        // Handling Winning Condition
+        if (playerHand.length === 0) {
+          socket.emit("youWin");
+        }
         gameStates[roomId] = gameState;
         const players = gameState.players;
         gameStates[roomId].currentTurn =
-          (gameStates[roomId].currentTurn + 1) % maxPlayers;
+          (gameStates[roomId].currentTurn + 1) % gameState.players.length;
         // Maintaining Deck Size
         let deck = gameState.deck;
         let discardPile = gameState.discardPile;
@@ -399,6 +460,9 @@ io.on("connection", async (socket) => {
             );
           });
         });
+        if (playerHand.length === 0) {
+          socket.emit("youWin");
+        }
         gameState.meld = meld;
         gameState.playerHands[socket.id] = playerHand;
         gameStates[roomId] = gameState;
@@ -430,11 +494,94 @@ io.on("connection", async (socket) => {
             );
           });
         });
+        if (playerHand.length === 0) {
+          socket.emit("youWin");
+        }
         gameState.meld = newMeldDeck;
         gameState.playerHands[socket.id] = playerHand;
         gameStates[roomId] = gameState;
         const players = gameState.players;
         sendGameState(players, io, gameState);
+      }
+    }
+  });
+  // Handling Winning Condition
+  socket.on("userWin", async (roomId, userToken) => {
+    if (roomId && userToken) {
+      socket.to(roomId).emit("userWin", socket.id);
+      const userId = await getUserId(userToken);
+      if (userId) {
+        // updating userDashBoard
+        try {
+          const query = "Select * from userdashboard where user_id = ?";
+          db.query(query, [userId], (err, userData) => {
+            if (err) {
+              throw err;
+            } else {
+              const data = userData[0];
+              // Updating the data
+              const updateQuery =
+                "UPDATE userdashboard SET current_balance = ?, number_of_games_played = ?, number_of_wins = ?, winning_amount = ?, total_amount_won = ? WHERE user_id = ?";
+              db.query(
+                updateQuery,
+                [
+                  data.current_balance + priceOfGame * (maxPlayers - 1),
+                  data.number_of_games_played + 1,
+                  data.number_of_wins + 1,
+                  data.winning_amount + priceOfGame * (maxPlayers - 1),
+                  data.total_amount_won + priceOfGame * (maxPlayers - 1),
+                  userId,
+                ],
+                (err, updatedData) => {
+                  if (err) {
+                    throw err;
+                  }
+                }
+              );
+            }
+          });
+        } catch (err) {
+          console.error("Error fetching data: ", err);
+        }
+      }
+    }
+  });
+  // Handling Losing Condition
+  socket.on("userLost", async (userToken) => {
+    if (userToken) {
+      const userId = await getUserId(userToken);
+      if (userId) {
+        // Fetching userDashBoard data
+        try {
+          const query = "Select * from userdashboard where user_id = ?";
+          db.query(query, [userId], (err, userData) => {
+            if (err) {
+              throw err;
+            } else {
+              const data = userData[0];
+              // Updating the data
+              const updateQuery =
+                "UPDATE userdashboard SET current_balance = ?, number_of_games_played = ?, number_of_lossess = ?, total_amount_lost = ? WHERE user_id = ?";
+              db.query(
+                updateQuery,
+                [
+                  data.current_balance - priceOfGame,
+                  data.number_of_games_played + 1,
+                  data.number_of_lossess + 1,
+                  data.total_amount_lost + priceOfGame,
+                  userId,
+                ],
+                (err, updatedData) => {
+                  if (err) {
+                    throw err;
+                  }
+                }
+              );
+            }
+          });
+        } catch (err) {
+          console.error("Error fetching data: ", err);
+        }
       }
     }
   });
